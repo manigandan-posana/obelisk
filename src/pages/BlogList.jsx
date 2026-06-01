@@ -45,10 +45,11 @@ export default function BlogList() {
 
           {status === "error" && (
             <div className="rounded-2xl bg-cream-200 p-8 text-center">
-              <p className="text-lg font-semibold text-ink">Couldn’t reach the blog API.</p>
+              <p className="text-lg font-semibold text-ink">Couldn’t load articles.</p>
               <p className="mt-2 text-neutral-600">
-                Start the backend with <code className="rounded bg-black/5 px-1.5 py-0.5">npm run server</code>{" "}
-                (or <code className="rounded bg-black/5 px-1.5 py-0.5">npm start</code> to run both).
+                The blog API isn’t ready yet. On Vercel, connect a{" "}
+                <strong>Postgres</strong> database and a <strong>Blob</strong> store to the project,
+                then redeploy. Locally, run <code className="rounded bg-black/5 px-1.5 py-0.5">vercel dev</code>.
               </p>
             </div>
           )}

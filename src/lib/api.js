@@ -1,8 +1,8 @@
 // Client for the Obelisk blog API (Vercel Serverless Functions).
-// Cover images go straight to Vercel Blob from the browser; post data is JSON.
-import { upload } from "@vercel/blob/client";
-
+// Cover images are POSTed to our own /api/upload (same-origin), which streams
+// them to Vercel Blob; post data is sent as JSON.
 const BASE = "/api";
+const MAX_COVER_BYTES = 4.4 * 1024 * 1024; // stay under Vercel's 4.5 MB limit
 const API_DOWN =
   "Could not reach the blog API. On Vercel this means Postgres/Blob aren't configured yet; locally run `vercel dev` (see README).";
 
@@ -30,14 +30,24 @@ export async function getBlog(slug) {
 }
 
 export async function createBlog({ title, author, tags, excerpt, content, coverFile }) {
-  // 1) Upload the cover (if any) directly to Vercel Blob.
+  // 1) Upload the cover (if any) to our function, which streams it to Blob.
   let cover = "";
   if (coverFile) {
-    const blob = await upload(coverFile.name, coverFile, {
-      access: "public",
-      handleUploadUrl: `${BASE}/upload`,
-    });
-    cover = blob.url;
+    if (coverFile.size > MAX_COVER_BYTES) {
+      throw new Error("Cover image is too large. Please use an image under 4 MB.");
+    }
+    let up;
+    try {
+      up = await fetch(`${BASE}/upload?filename=${encodeURIComponent(coverFile.name)}`, {
+        method: "POST",
+        headers: { "Content-Type": coverFile.type || "application/octet-stream" },
+        body: coverFile,
+      });
+    } catch {
+      throw new Error(API_DOWN);
+    }
+    if (!up.ok) throw await asError(up);
+    cover = (await up.json()).url;
   }
 
   // 2) Create the post.

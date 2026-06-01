@@ -1,7 +1,16 @@
-// Token endpoint for client-side uploads to Vercel Blob.
-// The browser (@vercel/blob/client `upload`) hits this to get a signed token,
-// then uploads the file straight to Blob — bypassing the function body limit.
-import { handleUpload } from "@vercel/blob/client";
+// Server-side image upload to Vercel Blob.
+// The browser POSTs the raw file bytes here (same-origin — no CORS), and we
+// stream them straight to Blob. Cover images stay well under Vercel's 4.5 MB
+// serverless request limit.
+import { put } from "@vercel/blob";
+
+async function streamToBuffer(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks);
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -9,20 +18,32 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
   try {
-    const jsonResponse = await handleUpload({
-      request: req,
-      body: req.body,
-      onBeforeGenerateToken: async () => ({
-        allowedContentTypes: ["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"],
-        maximumSizeInBytes: 8 * 1024 * 1024,
-        addRandomSuffix: true,
-      }),
-      // Runs as a Blob webhook after upload completes (production only).
-      onUploadCompleted: async () => {},
+    const filename = String(req.query.filename || "upload");
+    const contentType = req.headers["content-type"] || "application/octet-stream";
+
+    // Vercel only auto-parses JSON / urlencoded bodies; binary bodies arrive as
+    // an intact stream (or, depending on runtime, a Buffer). Handle both.
+    let body = req.body;
+    if (Buffer.isBuffer(body)) {
+      // already buffered
+    } else if (typeof body === "string" && body.length) {
+      body = Buffer.from(body);
+    } else {
+      body = await streamToBuffer(req);
+    }
+
+    if (!body || body.length === 0) {
+      return res.status(400).json({ error: "Empty file upload" });
+    }
+
+    const blob = await put(filename, body, {
+      access: "public",
+      contentType,
+      addRandomSuffix: true,
     });
-    return res.status(200).json(jsonResponse);
+    return res.status(200).json({ url: blob.url });
   } catch (err) {
     console.error("[api/upload]", err);
-    return res.status(400).json({ error: err.message || "Upload failed" });
+    return res.status(500).json({ error: err.message || "Upload failed" });
   }
 }
