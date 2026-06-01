@@ -82,7 +82,11 @@ npm run dev                # plain Vite -> http://localhost:5173 (/api calls wil
 
 ## Notes
 
-- Cover images are limited to ~4 MB (they're POSTed to `/api/upload` and streamed
-  to Blob, staying under Vercel's 4.5 MB serverless request limit).
+- Cover images are limited to ~4 MB (POSTed to `/api/upload`, streamed to Blob,
+  staying under Vercel's 4.5 MB serverless request limit).
+- The Blob store is **private**, so images aren't publicly addressable. Uploads
+  return a same-origin proxy URL (`/api/image?path=…`); [api/image.js](api/image.js)
+  authenticates with `BLOB_READ_WRITE_TOKEN` and streams the image to the browser
+  (cached hard at the CDN since blob pathnames are immutable).
 - Want a separate dev database? Create a second Postgres in Vercel and pull its env
   into `.env.local`, or point `POSTGRES_URL` at any Postgres (e.g. local/Neon branch).

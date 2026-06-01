@@ -37,11 +37,14 @@ export default async function handler(req, res) {
     }
 
     const blob = await put(filename, body, {
-      access: "public",
+      access: "private",
       contentType,
       addRandomSuffix: true,
     });
-    return res.status(200).json({ url: blob.url });
+    // Private blobs aren't directly loadable by a browser, so return a
+    // same-origin proxy URL that streams the image via /api/image.
+    const pathname = blob.pathname || new URL(blob.url).pathname.replace(/^\/+/, "");
+    return res.status(200).json({ url: `/api/image?path=${encodeURIComponent(pathname)}` });
   } catch (err) {
     console.error("[api/upload]", err);
     return res.status(500).json({ error: err.message || "Upload failed" });
